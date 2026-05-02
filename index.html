@@ -1,88 +1,70 @@
-const db =
-  globalThis.__B44_DB__ ||
-  (() => {
-    const getData = (key) => {
-      return JSON.parse(localStorage.getItem(key) || "[]");
-    };
+const db = globalThis.__B44_DB__ || {
+  auth: {
+    isAuthenticated: async () => {
+      return !!JSON.parse(localStorage.getItem("user"));
+    },
 
-    const setData = (key, data) => {
-      localStorage.setItem(key, JSON.stringify(data));
-    };
-
-    const getUser = () => {
+    me: async () => {
       return JSON.parse(localStorage.getItem("user"));
-    };
+    },
 
-    const setUser = (user) => {
+    login: async (name) => {
+      const user = { id: Date.now(), name };
       localStorage.setItem("user", JSON.stringify(user));
-    };
+      return user;
+    },
 
-    return {
-      auth: {
-        isAuthenticated: async () => {
-          return !!getUser();
-        },
+    logout: async () => {
+      localStorage.removeItem("user");
+      return true;
+    }
+  },
 
-        me: async () => {
-          return getUser();
-        },
-
-        login: async (name) => {
-          const user = { id: Date.now(), name };
-          setUser(user);
-          return user;
-        },
-
-        logout: async () => {
-          localStorage.removeItem("user");
-          return true;
-        }
+  entities: new Proxy({}, {
+    get: (_, entity) => ({
+      filter: async () => {
+        return JSON.parse(localStorage.getItem(entity) || "[]");
       },
 
-      entities: new Proxy({}, {
-        get: (_, entityName) => ({
-          filter: async () => {
-            return getData(entityName);
-          },
+      get: async (id) => {
+        return (JSON.parse(localStorage.getItem(entity) || "[]"))
+          .find(item => item.id === id) || null;
+      },
 
-          get: async (id) => {
-            return getData(entityName).find(item => item.id === id) || null;
-          },
+      create: async (data) => {
+        const items = JSON.parse(localStorage.getItem(entity) || "[]");
+        const newItem = { id: Date.now(), ...data };
+        items.push(newItem);
+        localStorage.setItem(entity, JSON.stringify(items));
+        return newItem;
+      },
 
-          create: async (data) => {
-            const items = getData(entityName);
-            const newItem = { id: Date.now(), ...data };
-            items.push(newItem);
-            setData(entityName, items);
-            return newItem;
-          },
+      update: async (id, data) => {
+        const items = JSON.parse(localStorage.getItem(entity) || "[]");
+        const index = items.findIndex(item => item.id === id);
+        if (index === -1) return null;
 
-          update: async (id, data) => {
-            const items = getData(entityName);
-            const index = items.findIndex(item => item.id === id);
-            if (index === -1) return null;
+        items[index] = { ...items[index], ...data };
+        localStorage.setItem(entity, JSON.stringify(items));
+        return items[index];
+      },
 
-            items[index] = { ...items[index], ...data };
-            setData(entityName, items);
-            return items[index];
-          },
-
-          delete: async (id) => {
-            const items = getData(entityName).filter(item => item.id !== id);
-            setData(entityName, items);
-            return true;
-          }
-        })
-      }),
-
-      integrations: {
-        Core: {
-          UploadFile: async (file) => {
-            return {
-              file_url: URL.createObjectURL(file)
-            };
-          }
-        }
+      delete: async (id) => {
+        const items = JSON.parse(localStorage.getItem(entity) || "[]")
+          .filter(item => item.id !== id);
+        localStorage.setItem(entity, JSON.stringify(items));
+        return true;
       }
-    };
-  })();
+    })
+  }),
+
+  integrations: {
+    Core: {
+      UploadFile: async (file) => {
+        return {
+          file_url: URL.createObjectURL(file)
+        };
+      }
+    }
+  }
+};
