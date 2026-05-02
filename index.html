@@ -1,16 +1,88 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
+const db =
+  globalThis.__B44_DB__ ||
+  (() => {
+    const getData = (key) => {
+      return JSON.parse(localStorage.getItem(key) || "[]");
+    };
 
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="https://db.com/logo_v2.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="manifest" href="/manifest.json" />
-    <title>Base44 APP</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
-</html>
+    const setData = (key, data) => {
+      localStorage.setItem(key, JSON.stringify(data));
+    };
+
+    const getUser = () => {
+      return JSON.parse(localStorage.getItem("user"));
+    };
+
+    const setUser = (user) => {
+      localStorage.setItem("user", JSON.stringify(user));
+    };
+
+    return {
+      auth: {
+        isAuthenticated: async () => {
+          return !!getUser();
+        },
+
+        me: async () => {
+          return getUser();
+        },
+
+        login: async (name) => {
+          const user = { id: Date.now(), name };
+          setUser(user);
+          return user;
+        },
+
+        logout: async () => {
+          localStorage.removeItem("user");
+          return true;
+        }
+      },
+
+      entities: new Proxy({}, {
+        get: (_, entityName) => ({
+          filter: async () => {
+            return getData(entityName);
+          },
+
+          get: async (id) => {
+            return getData(entityName).find(item => item.id === id) || null;
+          },
+
+          create: async (data) => {
+            const items = getData(entityName);
+            const newItem = { id: Date.now(), ...data };
+            items.push(newItem);
+            setData(entityName, items);
+            return newItem;
+          },
+
+          update: async (id, data) => {
+            const items = getData(entityName);
+            const index = items.findIndex(item => item.id === id);
+            if (index === -1) return null;
+
+            items[index] = { ...items[index], ...data };
+            setData(entityName, items);
+            return items[index];
+          },
+
+          delete: async (id) => {
+            const items = getData(entityName).filter(item => item.id !== id);
+            setData(entityName, items);
+            return true;
+          }
+        })
+      }),
+
+      integrations: {
+        Core: {
+          UploadFile: async (file) => {
+            return {
+              file_url: URL.createObjectURL(file)
+            };
+          }
+        }
+      }
+    };
+  })();
